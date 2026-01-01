@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unlock Manifolds Task</title>
+    <style>
+        :root {
+            --bg-color: #202020;
+            --panel-color: #4a555c;
+            --btn-color: #b0bec5;
+            --btn-active: #4caf50;
+            --btn-wrong: #f44336;
+            --text-color: #ffffff;
+        }
+
+        body {
+            font-family: 'Verdana', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            user-select: none; /* Prevents highlighting text while clicking fast */
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            font-weight: normal;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Controls Section */
+        .controls {
+            margin-bottom: 20px;
+            background: var(--panel-color);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="number"] {
+            padding: 8px;
+            border-radius: 4px;
+            border: none;
+            width: 60px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        button.start-btn {
+            padding: 8px 16px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        button.start-btn:hover {
+            background-color: #1976d2;
+        }
+
+        /* Game Grid */
+        #game-board {
+            display: grid;
+            gap: 10px;
+            background-color: var(--panel-color);
+            padding: 20px;
+            border-radius: 10px;
+            border: 4px solid #37474f;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            /* Grid layout is set dynamically via JS, but here is a default */
+            grid-template-columns: repeat(5, 1fr);
+            transition: background-color 0.2s;
+        }
+
+        /* Individual Number Buttons */
+        .manifold-btn {
+            width: 60px;
+            height: 60px;
+            background-color: var(--btn-color);
+            border: none;
+            border-radius: 8px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #78909c;
+            transition: transform 0.1s, background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .manifold-btn:active {
+            transform: translateY(4px);
+            box-shadow: none;
+        }
+
+        /* State Classes */
+        .manifold-btn.active {
+            background-color: var(--btn-active);
+            color: white;
+            box-shadow: 0 4px 0 #2e7d32;
+            cursor: default;
+        }
+
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+            background-color: var(--btn-wrong) !important;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+
+        #status-msg {
+            margin-top: 20px;
+            height: 24px;
+            font-weight: bold;
+            color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Unlock Manifolds</h1>
+
+    <div class="controls">
+        <label for="node-count">Number of Squares:</label>
+        <input type="number" id="node-count" min="2" max="50" value="10">
+        <button class="start-btn" onclick="startGame()">Start</button>
+    </div>
+
+    <div id="game-board">
+        </div>
+
+    <div id="status-msg"></div>
+
+    <script>
+        let currentNumber = 1;
+        let totalNumbers = 10;
+        let isGameActive = false;
+        
+        // Audio contexts for subtle clicks (Optional but nice)
+        // Note: Browsers block audio until user interaction, so these might be silent until first click.
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playTone(freq, type = 'sine') {
+            if(audioContext.state === 'suspended') audioContext.resume();
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.1);
+        }
+
+        function startGame() {
+            const board = document.getElementById('game-board');
+            const inputVal = document.getElementById('node-count').value;
+            const status = document.getElementById('status-msg');
+            
+            // Validation
+            totalNumbers = parseInt(inputVal);
+            if (totalNumbers < 2) totalNumbers = 2;
+            if (totalNumbers > 100) totalNumbers = 100; // Cap to prevent browser crash
+
+            currentNumber = 1;
+            isGameActive = true;
+            status.textContent = "";
+            board.classList.remove('shake');
+            board.innerHTML = '';
+
+            // Dynamic Grid Sizing based on number of items
+            // Basic logic: Try to keep it somewhat square
+            const cols = Math.ceil(Math.sqrt(totalNumbers));
+            board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+            // Generate numbers array [1, 2, ... N]
+            let numbers = [];
+            for (let i = 1; i <= totalNumbers; i++) {
+                numbers.push(i);
+            }
+
+            // Shuffle array (Fisher-Yates algorithm)
+            for (let i = numbers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [numbers[i], numbers[j]] = [numbers[j], numbers[i]];
+            }
+
+            // Create Buttons
+            numbers.forEach(num => {
+                const btn = document.createElement('button');
+                btn.classList.add('manifold-btn');
+                btn.textContent = num;
+                btn.dataset.value = num;
+                
+                btn.onclick = () => handleBtnClick(btn, num);
+                
+                board.appendChild(btn);
+            });
+        }
+
+        function handleBtnClick(btn, number) {
+            if (!isGameActive) return;
+
+            const board = document.getElementById('game-board');
+
+            // Correct Click
+            if (number === currentNumber) {
+                // Visual Update
+                btn.classList.add('active');
+                playTone(400 + (currentNumber * 20)); // Ascending pitch
+                
+                currentNumber++;
+
+                // Win Condition
+                if (currentNumber > totalNumbers) {
+                    isGameActive = false;
+                    document.getElementById('status-msg').textContent = "TASK COMPLETED!";
+                    playTone(800, 'square');
+                }
+            } 
+            // Incorrect Click (Standard Among Us behavior: fail immediately on wrong order)
+            else if (number !== currentNumber && !btn.classList.contains('active')) {
+                failGame(board);
+            }
+        }
+
+        function failGame(board) {
+            isGameActive = false;
+            playTone(150, 'sawtooth'); // Error buzz
+            
+            // Add shake effect and red flash
+            board.classList.add('shake');
+
+            // Reset after animation
+            setTimeout(() => {
+                startGame(); // Restart automatically like the real game
+            }, 500);
+        }
+
+        // Start a default game on load
+        window.onload = startGame;
+    </script>
+</body>
+</html>
