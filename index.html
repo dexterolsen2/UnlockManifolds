@@ -70,6 +70,12 @@
             color: #ccc;
         }
 
+        .auto-controls {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 10px;
+            margin-top: 5px;
+        }
+
         button.start-btn {
             width: 100%;
             padding: 10px;
@@ -168,6 +174,16 @@
         <div class="control-row high-limit-label">
             <label><input type="checkbox" id="high-limit"> Enable High Limit (200)</label>
         </div>
+        
+        <!-- Auto Option Section -->
+        <div class="control-row auto-controls">
+            <label><input type="checkbox" id="auto-mode"> Auto Solve</label>
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <input type="number" id="auto-rate" min="500" step="500" value="500" style="width: 70px;">
+                <span style="font-size: 10px;">ms</span>
+            </div>
+        </div>
+
         <div id="error-log"></div>
         <button class="start-btn" onclick="startGame()">Start Task</button>
     </div>
@@ -180,6 +196,7 @@
         let currentNumber = 1;
         let totalNumbers = 10;
         let isGameActive = false;
+        let autoInterval = null;
         
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -219,10 +236,20 @@
             return isLandscape ? { cols: large, rows: small } : { cols: small, rows: large };
         }
 
+        function clearAuto() {
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+            }
+        }
+
         function startGame() {
+            clearAuto();
             const board = document.getElementById('game-board');
             const input = document.getElementById('node-count');
             const highLimit = document.getElementById('high-limit').checked;
+            const autoMode = document.getElementById('auto-mode').checked;
+            const autoRateInput = document.getElementById('auto-rate');
             const status = document.getElementById('status-msg');
             const errorLog = document.getElementById('error-log');
             
@@ -251,13 +278,35 @@
             let numbers = Array.from({length: totalNumbers}, (_, i) => i + 1);
             numbers.sort(() => Math.random() - 0.5);
 
+            const btnMap = {};
+
             numbers.forEach(num => {
                 const btn = document.createElement('button');
                 btn.classList.add('manifold-btn');
                 btn.textContent = num;
                 btn.onclick = () => handleBtnClick(btn, num);
                 board.appendChild(btn);
+                btnMap[num] = btn;
             });
+
+            // Handle Auto Mode
+            if (autoMode) {
+                // Round to nearest 500ms
+                let rate = Math.round(parseInt(autoRateInput.value) / 500) * 500;
+                if (rate < 500) rate = 500;
+                autoRateInput.value = rate;
+
+                autoInterval = setInterval(() => {
+                    if (!isGameActive) {
+                        clearAuto();
+                        return;
+                    }
+                    const nextBtn = btnMap[currentNumber];
+                    if (nextBtn) {
+                        handleBtnClick(nextBtn, currentNumber);
+                    }
+                }, rate);
+            }
         }
 
         function handleBtnClick(btn, number) {
@@ -270,6 +319,7 @@
 
                 if (currentNumber > totalNumbers) {
                     isGameActive = false;
+                    clearAuto();
                     document.getElementById('status-msg').textContent = "Task Completed";
                     playSound(800, 'square', 0.3);
                 }
@@ -280,6 +330,7 @@
 
         function failGame() {
             isGameActive = false;
+            clearAuto();
             playSound(150, 'sawtooth', 0.3);
             const board = document.getElementById('game-board');
             board.classList.add('shake');
